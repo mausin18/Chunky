@@ -1,8 +1,8 @@
 package org.popcraft.chunky.util;
 
-import java.util.BitSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLongArray;
 
 public class RegionCache {
     private final Map<String, WorldState> cache = new ConcurrentHashMap<>();
@@ -15,33 +15,36 @@ public class RegionCache {
         cache.remove(world);
     }
 
-    @SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
     public static final class WorldState {
-        private final Map<Long, BitSet> regions = new ConcurrentHashMap<>();
+        private final Map<Long, AtomicLongArray> regions = new ConcurrentHashMap<>();
 
         public void setGenerated(final int x, final int z) {
             final int regionX = x >> 5;
             final int regionZ = z >> 5;
             final long regionKey = ChunkMath.pack(regionX, regionZ);
-            final BitSet region = regions.computeIfAbsent(regionKey, v -> new BitSet());
+            final AtomicLongArray region = regions.computeIfAbsent(regionKey, v -> new AtomicLongArray(16));
             final int chunkIndex = ChunkMath.regionIndex(x, z);
-            synchronized (region) {
-                region.set(chunkIndex);
-            }
+            final int wordIndex = chunkIndex >> 6;
+            final long mask = 1L << (chunkIndex & 63);
+            long word;
+            do {
+                word = region.get(wordIndex);
+                if ((word & mask) != 0) {
+                    return;
+                }
+            } while (!region.compareAndSet(wordIndex, word, word | mask));
         }
 
         public boolean isGenerated(final int x, final int z) {
             final int regionX = x >> 5;
             final int regionZ = z >> 5;
             final long regionKey = ChunkMath.pack(regionX, regionZ);
-            if (!regions.containsKey(regionKey)) {
+            final AtomicLongArray region = regions.get(regionKey);
+            if (region == null) {
                 return false;
             }
-            final BitSet region = regions.get(regionKey);
             final int chunkIndex = ChunkMath.regionIndex(x, z);
-            synchronized (region) {
-                return region.get(chunkIndex);
-            }
+            return (region.get(chunkIndex >> 6) & (1L << (chunkIndex & 63))) != 0;
         }
     }
 }
