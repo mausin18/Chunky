@@ -13,7 +13,6 @@ import java.util.concurrent.CompletableFuture;
 public final class Paper {
     private static final boolean CONFIG_EXISTS = classExists("com.destroystokyo.paper.PaperConfig") || classExists("io.papermc.paper.configuration.Configuration");
     private static final boolean CHUNK_GENERATION_STATE_EXISTS = methodExists(World.class, "getChunkGenerationStateAsync", int.class, int.class);
-    private static final boolean LOAD_OUTDATED_CHUNKS = Boolean.getBoolean("chunky.loadOutdatedChunks");
 
     private Paper() {
     }
@@ -26,15 +25,15 @@ public final class Paper {
         return CHUNK_GENERATION_STATE_EXISTS;
     }
 
-    public static CompletableFuture<Boolean> isChunkGeneratedAsync(final World world, final int x, final int z) {
+    public static CompletableFuture<Boolean> isChunkGeneratedAsync(final World world, final int x, final int z, final boolean loadOutdatedChunks) {
         return world.getChunkGenerationStateAsync(x, z)
                 .thenApply(state -> state == ChunkGenerationState.GENERATED
-                        || state == ChunkGenerationState.OUTDATED && !LOAD_OUTDATED_CHUNKS)
+                        || state == ChunkGenerationState.OUTDATED && !loadOutdatedChunks)
                 .exceptionally(ignored -> false);
     }
 
-    public static CompletableFuture<Chunk> getChunkAtAsync(final World world, final int x, final int z) {
-        return world.getChunkAtAsync(x, z, true);
+    public static CompletableFuture<Chunk> getChunkAtAsync(final World world, final int x, final int z, final boolean urgentLoad) {
+        return urgentLoad ? world.getChunkAtAsync(x, z, true, true) : world.getChunkAtAsync(x, z, true);
     }
 
     public static CompletableFuture<Boolean> teleportAsync(final Entity entity, final Location location) {

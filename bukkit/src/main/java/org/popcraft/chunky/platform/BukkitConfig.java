@@ -76,4 +76,46 @@ public class BukkitConfig implements Config {
     public void reload() {
         plugin.reloadConfig();
     }
+
+    @Override
+    public int getMaxWorkingCount() {
+        return plugin.getConfig().getInt("performance.max-working-count",
+                Input.tryInteger(System.getProperty("chunky.maxWorkingCount")).orElse(0));
+    }
+
+    @Override
+    public boolean isPrecheckExistingChunks() {
+        return plugin.getConfig().getBoolean("performance.precheck-existing-chunks",
+                Boolean.getBoolean("chunky.precheck"));
+    }
+
+    @Override
+    public boolean isUrgentLoad() {
+        return plugin.getConfig().getBoolean("performance.urgent-load",
+                Boolean.getBoolean("chunky.urgentLoad"));
+    }
+
+    @Override
+    public boolean isLoadOutdatedChunks() {
+        return plugin.getConfig().getBoolean("performance.load-outdated-chunks",
+                Boolean.getBoolean("chunky.loadOutdatedChunks"));
+    }
+
+    @Override
+    public int getTickingLoadDuration() {
+        return plugin.getConfig().getInt("performance.ticking-load-duration",
+                Input.tryInteger(System.getProperty("chunky.tickingLoadDuration")).orElse(0));
+    }
+
+    @Override
+    public boolean isAwaitTicketRemoval() {
+        return plugin.getConfig().getBoolean("performance.await-ticket-removal",
+                Boolean.getBoolean("chunky.awaitTicketRemoval"));
+    }
+
+    @Override
+    public int getLoadThreads() {
+        return plugin.getConfig().getInt("performance.load-threads",
+                Input.tryInteger(System.getProperty("chunky.loadThreads")).orElse(0));
+    }
 }

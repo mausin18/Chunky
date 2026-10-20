@@ -7,9 +7,9 @@ import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.popcraft.chunky.Chunky;
 import org.popcraft.chunky.ChunkyBukkit;
 import org.popcraft.chunky.platform.util.Location;
-import org.popcraft.chunky.util.Input;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,8 +22,6 @@ import java.util.concurrent.TimeUnit;
 
 public class BukkitWorld implements World {
     private static final boolean IS_GENERATED_SUPPORTED;
-    private static final int TICKING_LOAD_DURATION = Input.tryInteger(System.getProperty("chunky.tickingLoadDuration")).orElse(0);
-    private static final boolean AWAIT_TICKET_REMOVAL = Boolean.getBoolean("chunky.awaitTicketRemoval");
     private final JavaPlugin plugin = JavaPlugin.getPlugin(ChunkyBukkit.class);
     private final org.bukkit.World world;
     private final Border worldBorder;
@@ -44,6 +42,11 @@ public class BukkitWorld implements World {
         this.worldBorder = new BukkitBorder(world.getWorldBorder());
     }
 
+    private Config config() {
+        final Chunky chunky = ((ChunkyBukkit) plugin).getChunky();
+        return chunky == null ? null : chunky.getConfig();
+    }
+
     @Override
     public String getName() {
         return world.getName();
@@ -56,10 +59,14 @@ public class BukkitWorld implements World {
 
     @Override
     public CompletableFuture<Boolean> isChunkGenerated(final int x, final int z) {
-        if (Paper.isPaper() && Paper.hasChunkGenerationState()) {
-            return Paper.isChunkGeneratedAsync(world, x, z);
-        }
+        final Config config = this.config();
         if (Paper.isPaper()) {
+            if (config == null || !config.isPrecheckExistingChunks()) {
+                return CompletableFuture.completedFuture(false);
+            }
+            if (Paper.hasChunkGenerationState()) {
+                return Paper.isChunkGeneratedAsync(world, x, z, config.isLoadOutdatedChunks());
+            }
             return CompletableFuture.supplyAsync(() -> {
                 try {
                     return world.isChunkGenerated(x, z);
@@ -79,7 +86,9 @@ public class BukkitWorld implements World {
     private CompletableFuture<Void> getChunkFuture(final int x, final int z) {
         final CompletableFuture<Void> chunkFuture;
         if (Paper.isPaper()) {
-            chunkFuture = CompletableFuture.allOf(Paper.getChunkAtAsync(world, x, z));
+            final Config config = this.config();
+            final boolean urgentLoad = config != null && config.isUrgentLoad();
+            chunkFuture = CompletableFuture.allOf(Paper.getChunkAtAsync(world, x, z, urgentLoad));
         } else {
             chunkFuture = CompletableFuture.allOf(CompletableFuture.completedFuture(world.getChunkAt(x, z)));
         }
@@ -90,7 +99,10 @@ public class BukkitWorld implements World {
     @Override
     public CompletableFuture<Void> getChunkAtAsync(final int x, final int z) {
         final CompletableFuture<Void> chunkFuture = this.getChunkFuture(x, z);
-        if (TICKING_LOAD_DURATION > 0) {
+        final Config config = this.config();
+        final int tickingLoadDuration = config == null ? 0 : config.getTickingLoadDuration();
+        if (tickingLoadDuration > 0) {
+            final boolean awaitTicketRemoval = config.isAwaitTicketRemoval();
             final CompletableFuture<Void> removeTicketFuture = new CompletableFuture<>();
             chunkFuture.thenAccept(ignored -> {
                 final Runnable addTicketTask = () -> world.addPluginChunkTicket(x, z, plugin);
@@ -101,13 +113,13 @@ public class BukkitWorld implements World {
                 if (Folia.isFolia()) {
                     final org.bukkit.Location location = new org.bukkit.Location(world, x << 4, 0, z << 4);
                     Folia.schedule(plugin, location, addTicketTask);
-                    CompletableFuture.runAsync(() -> Folia.schedule(plugin, location, removeTicketTask), CompletableFuture.delayedExecutor(TICKING_LOAD_DURATION, TimeUnit.SECONDS));
+                    CompletableFuture.runAsync(() -> Folia.schedule(plugin, location, removeTicketTask), CompletableFuture.delayedExecutor(tickingLoadDuration, TimeUnit.SECONDS));
                 } else {
                     plugin.getServer().getScheduler().scheduleSyncDelayedTask(plugin, addTicketTask);
-                    plugin.getServer().getScheduler().scheduleSyncDelayedTask(plugin, removeTicketTask, TICKING_LOAD_DURATION * 20L);
+                    plugin.getServer().getScheduler().scheduleSyncDelayedTask(plugin, removeTicketTask, tickingLoadDuration * 20L);
                 }
             });
-            if (AWAIT_TICKET_REMOVAL) {
+            if (awaitTicketRemoval) {
                 return removeTicketFuture;
             }
         }

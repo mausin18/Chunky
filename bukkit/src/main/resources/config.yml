@@ -4,3 +4,30 @@ continue-on-restart: false
 force-load-existing-chunks: false
 silent: false
 update-interval: 1
+
+# Ajustes de rendimiento para la pregeneracion.
+performance:
+  # Numero maximo de chunks cargandose a la vez (cuantos mas, mas satura el generador
+  # multi-hilo de Paper). 0 = automatico (nucleos * 128, limitado entre 512 y 8192).
+  # Mayor = mas rapido, pero mas RAM/lag. Bajalo (p. ej. 512) si el servidor sufre.
+  max-working-count: 0
+  # Consultar al servidor si cada chunk ya existe antes de generarlo.
+  # false = MÁXIMA VELOCIDAD: genera directamente sin preguntar (recomendado para
+  # pregenerar terreno nuevo). true = mas lento por chunk, pero al reanudar una tarea
+  # a medias salta los chunks ya hechos en vez de recargarlos.
+  precheck-existing-chunks: false
+  # Paper: cargar los chunks con maxima prioridad (urgent load). Acelera la
+  # pregeneracion a costa de priorizar el trabajo de chunks sobre lo demas.
+  urgent-load: true
+  # Paper: tratar los chunks OUTDATED como si ya estuvieran generados (no los regenera).
+  load-outdated-chunks: false
+  # Mantener cada chunk cargado (ticking) durante N segundos tras generarlo. 0 = desactivado.
+  # Util para estructuras/persistencia, pero mas lento. Normalmente 0.
+  ticking-load-duration: 0
+  # Esperar a que se retire el ticket de chunk antes de pasar al siguiente. Solo tiene
+  # efecto si ticking-load-duration > 0. Mas lento pero mas seguro para Folia/plugins.
+  await-ticket-removal: false
+  # Hilos que lanzan las peticiones de carga en paralelo (multi-tarea).
+  # 0 = automatico (nucleos, entre 1 y 4). Ponlo en 1 para el modo clasico de un solo hilo.
+  # Prueba valores mas altos (p. ej. 8) si tu CPU tiene muchos nucleos.
+  load-threads: 0
